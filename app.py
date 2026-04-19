@@ -1,3 +1,4 @@
+import os
 import requests
 from bs4 import BeautifulSoup
 import json
@@ -19,24 +20,24 @@ def salvar_noticias_vistas(noticias):
     with open(ARQUIVO_NOTICIAS, 'w', encoding='utf-8') as f:
         json.dump(noticias, f, ensure_ascii=False, indent=2)
 
-def scrape_noticias():
-    response = requests.get('https://www.fapema.br/category/noticias/')
-    soup = BeautifulSoup(response.content, 'html.parser')
+def fazer_scraping():
+    resposta = requests.get('https://www.fapema.br/category/noticias/')
+    sopa = BeautifulSoup(resposta.content, 'html.parser')
     
     noticias_atuais = []
-    items = soup.find_all('div', class_='search-result-item')
+    itens = sopa.find_all('div', class_='search-result-item')
     
-    for item in items:
-        titulo_elem = item.find('a')
-        autor_elem = item.find('span', class_='search-result-author')
-        resumo_elem = item.find('div', class_='search-result-excerpt')
+    for item in itens:
+        elem_titulo = item.find('a')
+        elem_autor = item.find('span', class_='search-result-author')
+        elem_resumo = item.find('div', class_='search-result-excerpt')
         
-        if titulo_elem:
+        if elem_titulo:
             noticia = {
-                'titulo': titulo_elem.text.strip(),
-                'link': titulo_elem.get('href'),
-                'autor': autor_elem.text.strip() if autor_elem else 'Sem autor',
-                'resumo': resumo_elem.text.strip() if resumo_elem else 'Sem resumo',
+                'titulo': elem_titulo.text.strip(),
+                'link': elem_titulo.get('href'),
+                'autor': elem_autor.text.strip() if elem_autor else 'Sem autor',
+                'resumo': elem_resumo.text.strip() if elem_resumo else 'Sem resumo',
                 'data_captura': datetime.now().isoformat()
             }
             noticias_atuais.append(noticia)
@@ -48,27 +49,35 @@ def detectar_novas_noticias(noticias_atuais, noticias_vistas):
     novas = [n for n in noticias_atuais if n['link'] not in links_vistas]
     return novas
 
-@app.route('/noticias', methods=['GET'])
-def get_noticias():
+@app.route('/noticias-novas', methods=['GET'])
+def obter_noticias_novas():
     noticias_vistas = carregar_noticias_vistas()
-    noticias_atuais = scrape_noticias()
-    novas_noticias = detectar_novas_noticias(noticias_atuais, noticias_vistas)
+    noticias_atuais = fazer_scraping()
+    noticias_novas = detectar_novas_noticias(noticias_atuais, noticias_vistas)
     
     salvar_noticias_vistas(noticias_atuais)
     
     return jsonify({
-        'novas_noticias': novas_noticias,
-        'total_novas': len(novas_noticias),
+        'noticias_novas': noticias_novas,
+        'total_novas': len(noticias_novas),
         'timestamp': datetime.now().isoformat()
     })
 
 @app.route('/todas-noticias', methods=['GET'])
-def get_todas_noticias():
+def obter_todas_noticias():
     noticias = carregar_noticias_vistas()
     return jsonify({
         'noticias': noticias,
         'total': len(noticias)
     })
 
+@app.route('/status', methods=['GET'])
+def status():
+    return jsonify({
+        'status': 'API funcionando',
+        'timestamp': datetime.now().isoformat()
+    })
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    porta = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=porta)
