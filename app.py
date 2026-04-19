@@ -6,12 +6,21 @@ from datetime import datetime
 from flask import Flask, jsonify, request
 import threading
 import time
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 
 ARQUIVO_NOTICIAS = 'noticias_vistas.json'
 
-# Palavras-chave relacionadas a editais
+EMAIL_USER = os.getenv('EMAIL_USER')
+EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
+EMAIL_DESTINATARIO = os.getenv('EMAIL_DESTINATARIO')
+
 PALAVRAS_EDITAL = [
     'edital', 'editais', 'convocação', 'seleção', 'processo seletivo',
     'inscrição', 'inscrições', 'candidatura', 'candidaturas',
@@ -34,6 +43,41 @@ def carregar_noticias_vistas():
 def salvar_noticias_vistas(noticias):
     with open(ARQUIVO_NOTICIAS, 'w', encoding='utf-8') as f:
         json.dump(noticias, f, ensure_ascii=False, indent=2)
+
+def enviar_email(noticias):
+    try:
+        servidor = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        servidor.login(EMAIL_USER, EMAIL_PASSWORD)
+        
+        mensagem = MIMEMultipart('alternative')
+        mensagem['Subject'] = f'🎉 {len(noticias)} Nova(s) Notícia(s) de Edital!'
+        mensagem['From'] = EMAIL_USER
+        mensagem['To'] = EMAIL_DESTINATARIO
+        
+        html = '<html><body>'
+        html += f'<h2>Você tem {len(noticias)} nova(s) notícia(s)!</h2>'
+        html += '<hr>'
+        
+        for noticia in noticias:
+            html += f'<h3>{noticia["titulo"]}</h3>'
+            html += f'<p><strong>Resumo:</strong> {noticia["resumo"]}</p>'
+            html += f'<p><a href="{noticia["link"]}">Leia mais</a></p>'
+            html += f'<p><small>Capturado em: {noticia["data_captura"]}</small></p>'
+            html += '<hr>'
+        
+        html += '</body></html>'
+        
+        parte_html = MIMEText(html, 'html')
+        mensagem.attach(parte_html)
+        
+        servidor.sendmail(EMAIL_USER, EMAIL_DESTINATARIO, mensagem.as_string())
+        servidor.quit()
+        
+        print(f"[{datetime.now()}] Email enviado com sucesso!")
+        return True
+    except Exception as e:
+        print(f"Erro ao enviar email: {e}")
+        return False
 
 def fazer_scraping():
     try:
@@ -88,6 +132,11 @@ def executar_scraping_periodico():
                 todas_noticias = noticias_atuais + noticias_vistas
                 salvar_noticias_vistas(todas_noticias)
                 print(f"[{datetime.now()}] {len(noticias_novas)} notícia(s) nova(s) encontrada(s)")
+                
+                # Filtra apenas editais para enviar
+                editais = [n for n in noticias_novas if n['eh_edital']]
+                if editais:
+                    enviar_email(editais)
             else:
                 print(f"[{datetime.now()}] Nenhuma notícia nova")
         except Exception as e:
