@@ -10,10 +10,12 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
+from flask_cors import CORS
 
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)
 
 ARQUIVO_NOTICIAS = 'noticias_vistas.json'
 
@@ -81,7 +83,7 @@ def enviar_email(noticias):
 
 def fazer_scraping():
     try:
-        resposta = requests.get('https://www.fapema.br/category/noticias/', timeout=10)
+        resposta = requests.get('https://www.fapema.fr/category/noticias/', timeout=10)
         sopa = BeautifulSoup(resposta.content, 'html.parser')
         
         noticias_atuais = []
@@ -133,7 +135,6 @@ def executar_scraping_periodico():
                 salvar_noticias_vistas(todas_noticias)
                 print(f"[{datetime.now()}] {len(noticias_novas)} notícia(s) nova(s) encontrada(s)")
                 
-                # Filtra apenas editais para enviar
                 editais = [n for n in noticias_novas if n['eh_edital']]
                 if editais:
                     enviar_email(editais)
@@ -142,7 +143,7 @@ def executar_scraping_periodico():
         except Exception as e:
             print(f"Erro no scraping periódico: {e}")
         
-        time.sleep(3600)  # 1 hora
+        time.sleep(3600)
 
 @app.route('/noticias-novas', methods=['GET'])
 def obter_noticias_novas():
